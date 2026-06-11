@@ -1,0 +1,7 @@
+{
+  "id": "example.lattice-plugin",
+  "name": "Example Lattice Plugin",
+  "type": "system",
+  "capabilities": ["network:plan"]
+}
+
