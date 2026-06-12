@@ -8,7 +8,9 @@ sandbox. Lattice will use an explicit host API model:
 - No environment variable access.
 - No arbitrary network access.
 - KV/static/notify APIs only when the manifest grants the matching capability.
+- No high-risk host capabilities: `node:admin`, `monitor:admin`,
+  `ddns:admin`, `tunnel:admin`, `static:write`, `task:run`,
+  `network:plan`, or `network:apply`.
 
 The current MVP validates manifests but does not execute Wasm yet. Keep new
 third-party plugin designs compatible with this capability model.
-

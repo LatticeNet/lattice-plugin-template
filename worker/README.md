@@ -21,3 +21,12 @@ Suggested manifest:
 }
 ```
 
+Worker plugins are deliberately narrow. The server accepts only these
+capabilities for `type: "worker"`:
+
+- `worker:route`
+- `kv:read`
+- `static:read`
+
+Use a trusted `system` plugin when a feature needs host, process, network-plan,
+DDNS, tunnel, or remote-task capabilities.
