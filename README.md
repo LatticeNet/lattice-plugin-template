@@ -137,3 +137,7 @@ Output:
 
 Future Lattice releases can replace stdio with gRPC/hashicorp-go-plugin while
 keeping the same capability and approval semantics.
+
+Plan output should be deterministic: sort keys and avoid timestamps, random IDs,
+or environment-dependent text unless they are part of the reviewed mutation.
+Stable dry-run text keeps approval diffs auditable across retries.

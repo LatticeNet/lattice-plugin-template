@@ -24,6 +24,16 @@ jobs:
             lattice-plugin-template/system-go/go.mod
       - name: create workspace
         run: go work init ./lattice-sdk ./lattice-plugin-template/system-go
-      - name: build system-go plugin
+      - name: gofmt
+        working-directory: lattice-plugin-template
+        run: test -z "$(gofmt -l system-go)"
+      - name: test system-go plugin
         working-directory: lattice-plugin-template/system-go
-        run: go build ./...
+        run: go test -race -cover ./...
+      - name: build linux/amd64 system-go plugin
+        working-directory: lattice-plugin-template/system-go
+        env:
+          GOOS: linux
+          GOARCH: amd64
+          CGO_ENABLED: "0"
+        run: go build -trimpath -o /tmp/lattice-plugin-template .
