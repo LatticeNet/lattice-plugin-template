@@ -135,6 +135,10 @@ Output:
 {"ok":true,"plan":"...","message":"plan generated"}
 ```
 
+The template also implements `describe` and `health`. Keep the `describe`
+response aligned with `manifest.json` so runners, CI checks, and future
+marketplace tooling all see the same id, name, version, and capability surface.
+
 Future Lattice releases can replace stdio with gRPC/hashicorp-go-plugin while
 keeping the same capability and approval semantics.
 
