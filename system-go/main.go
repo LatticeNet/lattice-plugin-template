@@ -12,7 +12,7 @@ import (
 const (
 	pluginID      = "example.lattice-plugin"
 	pluginName    = "Example Lattice Plugin"
-	pluginVersion = "0.1.0"
+	pluginVersion = "0.2.0"
 )
 
 var capabilities = []string{"network:plan"}

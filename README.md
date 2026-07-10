@@ -17,7 +17,7 @@ Every plugin must declare an explicit capability list:
   "id": "example.nft-guard",
   "name": "Example nft Guard",
   "type": "system",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "latticenet",
   "entrypoint": "system-go/lattice-plugin-example",
   "digest_sha256": "<artifact sha256 hex>",

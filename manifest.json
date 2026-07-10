@@ -2,7 +2,7 @@
   "id": "example.lattice-plugin",
   "name": "Example Lattice Plugin",
   "type": "system",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "latticenet",
   "entrypoint": "system-go/lattice-plugin-example",
   "capabilities": ["network:plan"]
