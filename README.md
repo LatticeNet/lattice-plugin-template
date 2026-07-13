@@ -1,147 +1,114 @@
-# Lattice Plugin Template
+# Lattice Bundle v2 Reference Plugin
 
-This directory is the starting point for new Lattice extensions.
+`lattice-plugin-template` is the canonical self-contained Bundle v2 reference
+plugin for Lattice `0.2.1-alpha.1`.
 
-Plugin categories:
+It demonstrates four boundaries that production plugins must keep explicit:
 
-- `system-go/` - trusted first-party system plugin process template for host operations.
-- `worker/` - capability-limited dashboard/server Worker template.
-- `wasm/` - future sandboxed third-party Wasm plugin template notes.
+- ownership: the manifest, runtime, and UI are packaged together and hashed as a
+  single reviewable artifact.
+- isolation: the UI is a sandboxed iframe that talks only through the bridge
+  nonce in `location.hash`, never through `fetch`, storage, cookies, or top-level
+  navigation.
+- determinism: `tools/pluginpack` emits byte-identical `tar.gz` bundles even
+  when source mtimes change.
+- signing discipline: the release manifest is bound to the checked-in alpha
+  artifact digest and signed by the LatticeNet publisher key. Local development
+  must clear the digest and signature before repackaging different bytes.
 
-## Manifest
+## Bundle Layout
 
-Every plugin must declare an explicit capability list:
+The packaged artifact must contain exactly the host-facing runtime and UI assets:
 
-```json
-{
-  "id": "example.nft-guard",
-  "name": "Example nft Guard",
-  "type": "system",
-  "version": "0.2.0",
-  "publisher": "latticenet",
-  "entrypoint": "system-go/lattice-plugin-example",
-  "digest_sha256": "<artifact sha256 hex>",
-  "signature_ed25519": "<base64 ed25519 signature>",
-  "capabilities": ["network:plan"]
-}
+```text
+bin/linux-amd64/plugin
+bin/linux-arm64/plugin
+ui/index.html
+ui/assets/*
 ```
 
-Unknown capabilities are rejected by the server. Dangerous capabilities such as
-`network:apply` should never be granted to third-party plugins by default.
+`manifest.json` points at those Linux entrypoints, the sandbox UI entry, and the
+Bridge v1 contract (`bridge: 1`).
 
-Manifest identity is intentionally strict:
+## Runtime Surface
 
-- `id` is a stable lowercase identifier using only `a-z`, `0-9`, `.`, and `-`;
-  it must not contain whitespace, slashes, path traversal, or uppercase letters.
-- `name` must be printable and at most 80 characters.
-- `capabilities` must be non-empty and must not contain duplicates.
-- `version` and `entrypoint` are part of the public plugin contract even when a
-  current template does not need generated code yet.
-- `publisher` identifies the signer/trust root. Production loaders should
-  accept high-risk system plugins only from trusted publishers.
-- `digest_sha256` is the lowercase hex SHA-256 of the plugin artifact/package.
-- `signature_ed25519` signs the canonical Lattice plugin payload for
-  `id`, `name`, `type`, `version`, `entrypoint`, `publisher`, `digest_sha256`, and
-  capabilities. It prevents replacing the artifact or reusing a signature for a
-  different plugin id.
+The system runtime in `system-go/` is a newline-delimited JSON process using the
+`stdio-json-v1` contract. The example methods are intentionally small:
 
-## Capability Guide
+- `describe` returns stable plugin metadata for host discovery.
+- `health` reports runtime readiness.
+- `plan` renders a deterministic dry-run plan from sorted input keys.
 
-Low-risk read capabilities:
+The manifest also advertises typed interface metadata for `example.describe` and
+`example.plan`, with `network:plan` called out as the required scope for the
+planner action.
 
-- `node:read`
-- `monitor:read`
-- `audit:read`
-- `kv:read`
-- `static:read`
-- `task:read`
+## UI Sandbox Rules
 
-Operator-write capabilities:
+The Vue UI in `ui/` is bundled by Vite and ships as static files inside the
+artifact. The reference implementation intentionally avoids:
 
-- `kv:write`
-- `worker:route`
-- `notify:send`
+- imports from `lattice-dashboard`
+- `fetch`, XHR, cookies, `localStorage`, and `sessionStorage`
+- inline scripts or inline styles in built HTML
+- external URLs, top navigation, or breakout attempts
 
-High-risk host capabilities:
+The bridge client:
 
-- `node:admin`
-- `monitor:admin`
-- `ddns:admin`
-- `tunnel:admin`
-- `static:write`
-- `task:run`
-- `network:plan`
-- `network:apply`
+- reads `lattice_nonce` from the iframe URL fragment
+- posts only to `window.parent`
+- sends `ready`, `call`, `cancel`, and `resize`
+- accepts host `init`, `result`, `error`, `theme`, and `dispose`
 
-Type restrictions:
+## Local Build And Verification
 
-- `system` plugins may request high-risk capabilities, but should be reserved
-  for first-party or operator-audited plugins.
-- `worker` plugins may request only `worker:route`, `kv:read`, and
-  `static:read`.
-- `wasm` plugins may request read and operator-write capabilities, but may not
-  request high-risk host capabilities.
+Install UI dependencies and run the required checks:
 
-Third-party plugins should start with read-only capabilities. First-party system
-plugins may request high-risk capabilities only when their actions produce an
-auditable dry-run plan and go through the Lattice approval flow.
-
-`task:read` is intentionally separate from `task:run`: reading task metadata and
-results must not imply the ability to queue remote execution.
-
-## Signing Model
-
-Development manifests may omit `digest_sha256` and `signature_ed25519`, but a
-production Lattice loader should verify them for any host-risk capability such as
-`network:plan`, `network:apply`, `task:run`, `ddns:admin`, or `tunnel:admin`.
-
-The server-side verifier expects:
-
-- `publisher` to match a trusted Ed25519 public key configured by the operator.
-- `digest_sha256` to match the exact plugin artifact bytes.
-- `signature_ed25519` to verify against the canonical Lattice signing payload.
-
-Trust policy JSON:
-
-```json
-{
-  "allow_unsigned_host_risk": false,
-  "trusted_publishers": {
-    "latticenet": "base64-raw-ed25519-public-key"
-  }
-}
+```bash
+cd ui
+npm ci
+npm test
+npm run typecheck
+npm run build
+npm run verify:build
 ```
 
-> Fail-closed by default: omitting `allow_unsigned_host_risk` (or setting it
-> `false`) requires a trusted-publisher Ed25519 signature for **every** host-risk
-> plugin. Set it `true` only for local development on a host you fully control.
+Run Go tests within each Go module:
 
-Do not sign unpacked source directories casually. Build a deterministic artifact
-first, hash that artifact, then sign the manifest payload for that digest.
-
-## System Plugin Contract
-
-The bootstrap template uses newline-delimited JSON over stdio:
-
-Input:
-
-```json
-{"action":"plan","payload":{"public_tcp":[80,443]}}
+```bash
+(cd system-go && go test -race ./...)
+(cd tools/pluginpack && go test -race ./...)
 ```
 
-Output:
+Build a bundle workspace and package it deterministically:
 
-```json
-{"ok":true,"plan":"...","message":"plan generated"}
+```bash
+tmpdir="$(mktemp -d)"
+mkdir -p "$tmpdir/bundle/bin/linux-amd64" "$tmpdir/bundle/bin/linux-arm64" "$tmpdir/bundle/ui"
+(cd system-go && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o "$tmpdir/bundle/bin/linux-amd64/plugin" .)
+(cd system-go && GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -o "$tmpdir/bundle/bin/linux-arm64/plugin" .)
+cp -R ui/dist/. "$tmpdir/bundle/ui"
+(cd tools/pluginpack && go run ./cmd/pluginpack -source "$tmpdir/bundle" -output "$tmpdir/reference-plugin.tar.gz")
 ```
 
-The template also implements `describe` and `health`. Keep the `describe`
-response aligned with `manifest.json` so runners, CI checks, and future
-marketplace tooling all see the same id, name, version, and capability surface.
+`pluginpack` normalizes archive paths, rejects unsafe names and symlinks, stamps
+tar entries at the Unix epoch, zeros uid/gid, and uses mode `0700` for
+directories and runtime binaries (`bin/**/plugin`) with `0600` for other files.
 
-Future Lattice releases can replace stdio with gRPC/hashicorp-go-plugin while
-keeping the same capability and approval semantics.
+## Signing
 
-Plan output should be deterministic: sort keys and avoid timestamps, random IDs,
-or environment-dependent text unless they are part of the reviewed mutation.
-Stable dry-run text keeps approval diffs auditable across retries.
+The checked-in manifest represents the published alpha artifact and therefore
+contains both `bundle.digest_sha256` and `signature_ed25519`. The intended
+release flow is:
+
+1. build runtime binaries and static UI assets
+2. package the bundle deterministically
+3. compute the real `bundle.digest_sha256`
+4. sign the manifest payload with a trusted publisher key in release automation
+
+Do not sign unpacked source trees or ad hoc developer bundles. The trust decision
+must be anchored to the exact packaged bytes.
+
+When using this repository as a starting point for a new plugin, change the
+plugin identity and clear both release-bound fields before the first local
+package. Never reuse the reference plugin signature for modified bytes.

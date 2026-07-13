@@ -3,16 +3,14 @@ package main
 import (
 	"encoding/json"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 )
 
 type manifestContract struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	Version      string   `json:"version"`
-	Capabilities []string `json:"capabilities"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
 }
 
 func TestDescribeMatchesManifestContract(t *testing.T) {
@@ -30,10 +28,9 @@ func TestDescribeMatchesManifestContract(t *testing.T) {
 		t.Fatalf("describe ok = false, error = %q", resp.Error)
 	}
 	var body struct {
-		ID           string   `json:"id"`
-		Name         string   `json:"name"`
-		Version      string   `json:"version"`
-		Capabilities []string `json:"capabilities"`
+		ID      string `json:"id"`
+		Name    string `json:"name"`
+		Version string `json:"version"`
 	}
 	if err := json.Unmarshal(resp.Result, &body); err != nil {
 		t.Fatal(err)
@@ -46,9 +43,6 @@ func TestDescribeMatchesManifestContract(t *testing.T) {
 	}
 	if body.Version != manifest.Version {
 		t.Fatalf("describe version = %q, manifest version = %q", body.Version, manifest.Version)
-	}
-	if !reflect.DeepEqual(body.Capabilities, manifest.Capabilities) {
-		t.Fatalf("describe capabilities = %v, manifest capabilities = %v", body.Capabilities, manifest.Capabilities)
 	}
 }
 
@@ -82,6 +76,50 @@ func TestRenderPlanIsDeterministicAndNonMutating(t *testing.T) {
 	}
 }
 
+func TestCallActionSupportsReferenceDescribeAndPlan(t *testing.T) {
+	describeResp := handle(request{
+		Action:  "call",
+		Service: "example.lattice-plugin/reference",
+		Method:  "describe",
+	})
+	if !describeResp.OK {
+		t.Fatalf("call describe ok = false, error = %q", describeResp.Error)
+	}
+	var describeBody struct {
+		ID      string `json:"id"`
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(describeResp.Result, &describeBody); err != nil {
+		t.Fatal(err)
+	}
+	if describeBody.ID != pluginID || describeBody.Name != pluginName || describeBody.Version != pluginVersion {
+		t.Fatalf("unexpected describe body: %+v", describeBody)
+	}
+
+	planResp := handle(request{
+		Action:  "call",
+		Service: "example.lattice-plugin/reference",
+		Method:  "plan",
+		Payload: map[string]any{
+			"node_id":    "node-a",
+			"public_tcp": []any{80, 443},
+		},
+	})
+	if !planResp.OK {
+		t.Fatalf("call plan ok = false, error = %q", planResp.Error)
+	}
+	var planBody struct {
+		Plan string `json:"plan"`
+	}
+	if err := json.Unmarshal(planResp.Result, &planBody); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(planBody.Plan, "# node_id = node-a") {
+		t.Fatalf("plan result missing node id:\n%s", planBody.Plan)
+	}
+}
+
 func TestUnsupportedActionFailsClosed(t *testing.T) {
 	resp := handle(request{Action: "apply"})
 
@@ -90,5 +128,31 @@ func TestUnsupportedActionFailsClosed(t *testing.T) {
 	}
 	if !strings.Contains(resp.Error, `unsupported action "apply"`) {
 		t.Fatalf("unexpected error: %q", resp.Error)
+	}
+}
+
+func TestCallActionFailsClosedForUnknownServiceOrMethod(t *testing.T) {
+	serviceResp := handle(request{
+		Action:  "call",
+		Service: "example.lattice-plugin/other",
+		Method:  "plan",
+	})
+	if serviceResp.OK {
+		t.Fatal("unknown service returned ok=true")
+	}
+	if !strings.Contains(serviceResp.Error, "unsupported service") {
+		t.Fatalf("unexpected service error: %q", serviceResp.Error)
+	}
+
+	methodResp := handle(request{
+		Action:  "call",
+		Service: "example.lattice-plugin/reference",
+		Method:  "apply",
+	})
+	if methodResp.OK {
+		t.Fatal("unknown method returned ok=true")
+	}
+	if !strings.Contains(methodResp.Error, "unsupported method") {
+		t.Fatalf("unexpected method error: %q", methodResp.Error)
 	}
 }

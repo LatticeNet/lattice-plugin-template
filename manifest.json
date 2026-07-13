@@ -1,9 +1,75 @@
 {
+  "schema": "lattice.plugin.manifest.v2",
   "id": "example.lattice-plugin",
-  "name": "Example Lattice Plugin",
+  "name": "Lattice Bundle Reference Plugin",
   "type": "system",
-  "version": "0.2.0",
+  "capabilities": [
+    "network:plan"
+  ],
+  "version": "0.2.1-alpha.1",
   "publisher": "latticenet",
-  "entrypoint": "system-go/lattice-plugin-example",
-  "capabilities": ["network:plan"]
+  "signature_ed25519": "24ChQL0ahFDsQako2FMmp38sp+DukkaK7vmySZYFyWfUF8lgMoxGwMlQo6IFmbzggn1fqggQrlZGxYMHOH6iBA==",
+  "bundle": {
+    "format": "tar+gzip",
+    "digest_sha256": "39a169f6b934ce4c031e37e96022053a4d268fec2bcdc2bb87b162c08fe08a79"
+  },
+  "runtime": {
+    "protocol": "stdio-json-v1",
+    "entrypoints": {
+      "linux/amd64": "bin/linux-amd64/plugin",
+      "linux/arm64": "bin/linux-arm64/plugin"
+    }
+  },
+  "ui_runtime": {
+    "mode": "sandbox",
+    "entrypoint": "ui/index.html",
+    "bridge_version": "1"
+  },
+  "compatibility": {
+    "server": "\u003e=0.2.1",
+    "dashboard_host": "\u003e=1",
+    "runtime_protocol": "\u003e=1"
+  },
+  "ui": {
+    "nav": [
+      {
+        "section": "extensions",
+        "section_title": "Extensions",
+        "title": "Reference Plugin",
+        "route": "reference",
+        "icon": "Blocks",
+        "scopes": [
+          "network:plan"
+        ]
+      }
+    ],
+    "views": [
+      {
+        "route": "reference",
+        "title": "Reference Plugin",
+        "kind": "sandbox"
+      }
+    ]
+  },
+  "interfaces": [
+    {
+      "service": "example.lattice-plugin/reference",
+      "methods": [
+        {
+          "name": "describe",
+          "effect": "read",
+          "scopes": [
+            "network:plan"
+          ]
+        },
+        {
+          "name": "plan",
+          "effect": "plan",
+          "scopes": [
+            "network:plan"
+          ]
+        }
+      ]
+    }
+  ]
 }

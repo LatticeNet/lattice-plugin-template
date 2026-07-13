@@ -11,14 +11,17 @@ import (
 
 const (
 	pluginID      = "example.lattice-plugin"
-	pluginName    = "Example Lattice Plugin"
-	pluginVersion = "0.2.0"
+	pluginName    = "Lattice Bundle Reference Plugin"
+	pluginVersion = "0.2.1-alpha.1"
 )
 
-var capabilities = []string{"network:plan"}
+var interfaces = []string{"example.describe", "example.plan"}
+var requiredScopes = []string{"network:plan"}
 
 type request struct {
 	Action  string         `json:"action"`
+	Service string         `json:"service,omitempty"`
+	Method  string         `json:"method,omitempty"`
 	Payload map[string]any `json:"payload"`
 }
 
@@ -46,24 +49,50 @@ func main() {
 func handle(req request) response {
 	switch req.Action {
 	case "describe":
-		body, _ := json.Marshal(map[string]any{
-			"id":           pluginID,
-			"name":         pluginName,
-			"version":      pluginVersion,
-			"capabilities": capabilities,
-			"manages": []string{
-				"example deterministic dry-run plans",
-				"no host changes until the template is customized",
-			},
-			"engine": "template system-go stdio process",
-		})
-		return response{OK: true, Result: body, Message: "example plugin capability surface"}
+		body, _ := json.Marshal(describeBody())
+		return response{OK: true, Result: body, Message: "reference plugin interface surface"}
 	case "health":
 		return response{OK: true, Message: "example plugin healthy"}
 	case "plan":
 		return response{OK: true, Plan: renderPlan(req.Payload), Message: "dry-run plan generated"}
+	case "call":
+		return handleCall(req)
 	default:
 		return response{OK: false, Error: fmt.Sprintf("unsupported action %q", req.Action)}
+	}
+}
+
+func handleCall(req request) response {
+	if req.Service != "example.lattice-plugin/reference" {
+		return response{OK: false, Error: fmt.Sprintf("unsupported service %q", req.Service)}
+	}
+
+	switch req.Method {
+	case "describe":
+		body, _ := json.Marshal(describeBody())
+		return response{OK: true, Result: body, Message: "describe result generated"}
+	case "plan":
+		body, _ := json.Marshal(map[string]any{
+			"plan": renderPlan(req.Payload),
+		})
+		return response{OK: true, Result: body, Message: "plan result generated"}
+	default:
+		return response{OK: false, Error: fmt.Sprintf("unsupported method %q", req.Method)}
+	}
+}
+
+func describeBody() map[string]any {
+	return map[string]any{
+		"id":              pluginID,
+		"name":            pluginName,
+		"version":         pluginVersion,
+		"interfaces":      interfaces,
+		"required_scopes": requiredScopes,
+		"manages": []string{
+			"example deterministic dry-run plans",
+			"self-contained bundle packaging and sandbox bridge patterns",
+		},
+		"engine": "bundle v2 stdio-json-v1 system runtime",
 	}
 }
 

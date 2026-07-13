@@ -1,31 +1,40 @@
 # Plugin Security
 
-Lattice plugins must be capability-based.
+This repository is a reference implementation for a first-party Lattice Bundle
+v2 plugin. Treat it as an example of the minimum safety bar, not as a shortcut
+around review.
 
-Rules:
+## Ownership And Trust
 
-- No filesystem access unless a future host API explicitly grants it.
-- No process execution in third-party plugins.
-- No environment variable access by default.
-- No arbitrary network access by default.
-- Manifest ids must be stable lowercase identifiers, never paths or user-facing
-  labels. Capability lists must be explicit, non-empty, and duplicate-free so
-  reviews and audit events cannot disagree about what was granted.
-- Production manifests for high-risk/system plugins must include a trusted
-  `publisher`, artifact `digest_sha256`, and `signature_ed25519`. Unsigned
-  development manifests are acceptable only before installation/loading.
-- `network:apply`, `task:run`, `node:admin`, `ddns:admin`, `tunnel:admin`,
-  `monitor:admin`, `network:plan`, and `static:write` must be treated as high-risk.
-- `task:read` is read-only and must never grant task creation or remote
-  execution.
-- `worker` plugins may only declare `worker:route`, `kv:read`, and
-  `static:read`.
-- `wasm` plugins may not declare high-risk host capabilities.
-- High-risk capabilities require a trusted `system` plugin.
-- Plugins that affect a node must be constrained by the caller's node allowlist.
-- Webhook-style plugins must use the server's guarded outbound HTTP client; they
-  must not dial loopback, private, link-local, metadata, or special-use ranges.
-- All privileged operations must be auditable by `lattice-server`.
+- `manifest.json` is intentionally unsigned for local development only.
+- Production bundles must replace the placeholder digest with the real
+  artifact SHA-256 and add a trusted signature in release automation.
+- The published trust decision should bind the manifest identity to the exact
+  packaged bytes, not to an unpacked source checkout.
 
-System plugins are trusted built-ins. Third-party plugins should target the
-future Wasm host or the restricted Worker interface.
+## Runtime Isolation
+
+- The Go runtime is a separate stdio process with explicit JSON inputs and
+  outputs.
+- The UI runs in a sandboxed iframe and uses only the postMessage bridge with a
+  nonce from `location.hash`.
+- The reference UI does not use `fetch`, XHR, local/session storage, cookies,
+  inline scripts, inline styles, or top-level navigation.
+- Built assets must stay self-contained under `ui/index.html` and `ui/assets/`.
+
+## Packaging Guarantees
+
+- `tools/pluginpack` emits deterministic `tar.gz` archives with sorted paths.
+- Tar headers use Unix-epoch timestamps and zero uid/gid metadata.
+- Directories and runtime binaries use mode `0700`; other files use `0600`.
+- Unsafe archive names, symlinks, and unsupported filesystem entry types are
+  rejected before packaging.
+
+## Review Expectations
+
+- Keep runtime entrypoints limited to the manifest-declared Linux binaries.
+- Keep UI changes auditable and avoid adding any dependency on `lattice-dashboard`
+  internals.
+- Treat `network:plan` as a reviewed scope. Expanding to mutating or host-risk
+  scopes should come with new interface metadata, tests, and explicit signer
+  approval.
