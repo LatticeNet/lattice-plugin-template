@@ -69,8 +69,8 @@ jobs:
           CGO_ENABLED: "0"
         run: |
           mkdir -p "$RUNNER_TEMP/bundle-src/bin/linux-amd64" "$RUNNER_TEMP/bundle-src/bin/linux-arm64"
-          GOOS=linux GOARCH=amd64 go build -trimpath -o "$RUNNER_TEMP/bundle-src/bin/linux-amd64/plugin" ./system-go
-          GOOS=linux GOARCH=arm64 go build -trimpath -o "$RUNNER_TEMP/bundle-src/bin/linux-arm64/plugin" ./system-go
+          GOOS=linux GOARCH=amd64 go build -trimpath -buildvcs=false -o "$RUNNER_TEMP/bundle-src/bin/linux-amd64/plugin" ./system-go
+          GOOS=linux GOARCH=arm64 go build -trimpath -buildvcs=false -o "$RUNNER_TEMP/bundle-src/bin/linux-arm64/plugin" ./system-go
 
       - name: assemble ui bundle tree
         run: |

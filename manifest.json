@@ -8,10 +8,10 @@
   ],
   "version": "0.2.1-alpha.1",
   "publisher": "latticenet",
-  "signature_ed25519": "24ChQL0ahFDsQako2FMmp38sp+DukkaK7vmySZYFyWfUF8lgMoxGwMlQo6IFmbzggn1fqggQrlZGxYMHOH6iBA==",
+  "signature_ed25519": "rBzQwgpliSNM2dgrLNLdRZe5QfL/87TtCAMhHczLSdmR1MMvVD20syZ3xZEahdo8FnKfmA6MNRPXhdgm+BpMDg==",
   "bundle": {
     "format": "tar+gzip",
-    "digest_sha256": "39a169f6b934ce4c031e37e96022053a4d268fec2bcdc2bb87b162c08fe08a79"
+    "digest_sha256": "c3ecc9c890ec5de4ebcdc27ee7bce0f3ac17e48a6343eafd88bac47d94cac69d"
   },
   "runtime": {
     "protocol": "stdio-json-v1",

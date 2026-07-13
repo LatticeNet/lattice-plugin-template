@@ -85,8 +85,8 @@ Build a bundle workspace and package it deterministically:
 ```bash
 tmpdir="$(mktemp -d)"
 mkdir -p "$tmpdir/bundle/bin/linux-amd64" "$tmpdir/bundle/bin/linux-arm64" "$tmpdir/bundle/ui"
-(cd system-go && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o "$tmpdir/bundle/bin/linux-amd64/plugin" .)
-(cd system-go && GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -o "$tmpdir/bundle/bin/linux-arm64/plugin" .)
+(cd system-go && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -buildvcs=false -o "$tmpdir/bundle/bin/linux-amd64/plugin" .)
+(cd system-go && GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -buildvcs=false -o "$tmpdir/bundle/bin/linux-arm64/plugin" .)
 cp -R ui/dist/. "$tmpdir/bundle/ui"
 (cd tools/pluginpack && go run ./cmd/pluginpack -source "$tmpdir/bundle" -output "$tmpdir/reference-plugin.tar.gz")
 ```
