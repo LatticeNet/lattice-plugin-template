@@ -54,7 +54,7 @@ describe('BridgeClient', () => {
       type: 'lattice.host.init',
       version: '1',
       pluginId: 'example.lattice-plugin',
-      pluginVersion: '0.2.1-alpha.2',
+      pluginVersion: '0.2.1-alpha.3',
       pluginRoute: 'reference',
       locale: 'en-US',
       interfaces: [],
@@ -136,7 +136,7 @@ describe('BridgeClient', () => {
       type: 'lattice.host.init',
       version: '1',
       pluginId: 'example.lattice-plugin',
-      pluginVersion: '0.2.1-alpha.2',
+      pluginVersion: '0.2.1-alpha.3',
       pluginRoute: 'reference',
       locale: 'en-US',
       interfaces: [
@@ -187,7 +187,7 @@ describe('BridgeClient', () => {
     await expect(initPromise).resolves.toEqual({
       version: '1',
       pluginId: 'example.lattice-plugin',
-      pluginVersion: '0.2.1-alpha.2',
+      pluginVersion: '0.2.1-alpha.3',
       pluginRoute: 'reference',
       locale: 'en-US',
       interfaces: [

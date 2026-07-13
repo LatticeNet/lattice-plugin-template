@@ -12,7 +12,7 @@ import (
 const (
 	pluginID      = "example.lattice-plugin"
 	pluginName    = "Lattice Bundle Reference Plugin"
-	pluginVersion = "0.2.1-alpha.2"
+	pluginVersion = "0.2.1-alpha.3"
 )
 
 var interfaces = []string{"example.describe", "example.plan"}

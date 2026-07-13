@@ -1,7 +1,7 @@
 # Lattice Bundle v2 Reference Plugin
 
 `lattice-plugin-template` is the canonical self-contained Bundle v2 reference
-plugin for Lattice `0.2.1-alpha.2`.
+plugin for Lattice `0.2.1-alpha.3`.
 
 It demonstrates four boundaries that production plugins must keep explicit:
 
@@ -94,8 +94,9 @@ cp -R ui/dist/. "$tmpdir/bundle/ui"
 `pluginpack` normalizes archive paths, rejects unsafe names and symlinks, stamps
 tar entries at the Unix epoch, zeros uid/gid, and uses mode `0700` for
 directories and runtime binaries (`bin/**/plugin`) with `0600` for other files.
-Release builds pin Go 1.26.4 so compiler patch changes cannot silently alter
-the signed runtime bytes.
+Release builds pin Node.js 22 and Go 1.26.4. Both toolchains are part of the
+signed byte contract: changing either can alter the bundled UI or runtime even
+when the source tree is unchanged.
 
 ## Signing
 
