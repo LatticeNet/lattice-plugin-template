@@ -1,4 +1,6 @@
 const DEFAULT_TIMEOUT_MS = 15_000
+const READY_RETRY_MS = 500
+const READY_ATTEMPT_LIMIT = 16
 
 export type HostTheme = {
   colorScheme?: 'light' | 'dark' | 'system'
@@ -109,6 +111,8 @@ export class BridgeClient {
   private disposed = false
   private requestSeq = 0
   private initResolved = false
+  private readyAttempts = 0
+  private readyTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(win: Window) {
     this.win = win
@@ -118,10 +122,7 @@ export class BridgeClient {
     this.init.catch(() => {})
     this.onMessageBound = (event: MessageEvent) => this.onMessage(event)
     this.win.addEventListener('message', this.onMessageBound)
-    this.post({
-      type: 'lattice.plugin.ready',
-      nonce: this.nonce
-    })
+    this.postReady()
   }
 
   call<T>(
@@ -203,6 +204,7 @@ export class BridgeClient {
       return
     }
     this.disposed = true
+    this.clearReadyTimer()
     this.win.removeEventListener('message', this.onMessageBound)
     for (const [id, request] of this.inflight.entries()) {
       clearTimer(request.timer)
@@ -226,6 +228,7 @@ export class BridgeClient {
 
     switch (data.type) {
       case 'lattice.host.init': {
+        this.clearReadyTimer()
         this.theme = {
           colorScheme: data.colorScheme,
           designTokens: data.designTokens
@@ -261,6 +264,7 @@ export class BridgeClient {
           return
         }
         if (!this.initResolved) {
+          this.clearReadyTimer()
           this.initDeferred.reject(error)
         }
         for (const id of this.inflight.keys()) {
@@ -287,6 +291,27 @@ export class BridgeClient {
     }
     for (const listener of this.themeListeners) {
       listener(this.theme)
+    }
+  }
+
+  private postReady() {
+    if (this.disposed || this.readyAttempts >= READY_ATTEMPT_LIMIT) {
+      return
+    }
+    this.readyAttempts += 1
+    this.post({
+      type: 'lattice.plugin.ready',
+      nonce: this.nonce
+    })
+    if (this.readyAttempts < READY_ATTEMPT_LIMIT) {
+      this.readyTimer = setTimeout(() => this.postReady(), READY_RETRY_MS)
+    }
+  }
+
+  private clearReadyTimer() {
+    if (this.readyTimer !== null) {
+      clearTimeout(this.readyTimer)
+      this.readyTimer = null
     }
   }
 

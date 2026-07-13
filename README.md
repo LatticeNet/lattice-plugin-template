@@ -1,7 +1,7 @@
 # Lattice Bundle v2 Reference Plugin
 
 `lattice-plugin-template` is the canonical self-contained Bundle v2 reference
-plugin for Lattice `0.2.1-alpha.1`.
+plugin for Lattice `0.2.1-alpha.2`.
 
 It demonstrates four boundaries that production plugins must keep explicit:
 

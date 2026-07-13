@@ -6,12 +6,12 @@
   "capabilities": [
     "network:plan"
   ],
-  "version": "0.2.1-alpha.1",
+  "version": "0.2.1-alpha.2",
   "publisher": "latticenet",
-  "signature_ed25519": "xxhCx0FWLklzKwyN3Ws/GuIVlL1jrznzI0SBSBKHTTsZI0ZpTg9g3UOQYqvkPiUMvHIZ1LIWepeTwHWe7vleCw==",
+  "signature_ed25519": "xRTsmmMXCPVUjCsNN9M3xhpU0wFYf5xWnsQPAY0tRuUQP6G5Q2UTTnDpyJ/1RJPwNB6K7qh1PpDx6ojrknowAw==",
   "bundle": {
     "format": "tar+gzip",
-    "digest_sha256": "3d46ab21277021106f4555ab8b991765a863568520f39d6267b0267770eac5cf"
+    "digest_sha256": "4fdc4d878e97f2d1ab1d36af713fd9a954607098468faee0b57a8f710a28b484"
   },
   "runtime": {
     "protocol": "stdio-json-v1",

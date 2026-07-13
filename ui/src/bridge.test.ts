@@ -33,7 +33,8 @@ describe('BridgeClient', () => {
     window.location.hash = ''
   })
 
-  test('requires a lattice nonce and posts a ready message to the parent window', () => {
+  test('retries ready until host init and then stops', () => {
+    vi.useFakeTimers()
     const parentSpy = vi.spyOn(window.parent, 'postMessage')
 
     const bridge = new BridgeClient(window)
@@ -46,6 +47,23 @@ describe('BridgeClient', () => {
       },
       '*'
     )
+    vi.advanceTimersByTime(500)
+    expect(parentSpy).toHaveBeenCalledTimes(2)
+
+    dispatchHostMessage({
+      type: 'lattice.host.init',
+      version: '1',
+      pluginId: 'example.lattice-plugin',
+      pluginVersion: '0.2.1-alpha.2',
+      pluginRoute: 'reference',
+      locale: 'en-US',
+      interfaces: [],
+      colorScheme: 'light',
+      designTokens: {}
+    })
+    vi.advanceTimersByTime(1_000)
+    expect(parentSpy).toHaveBeenCalledTimes(2)
+    bridge.dispose()
 
     window.location.hash = ''
     expect(() => new BridgeClient(window)).toThrow(/lattice_nonce/)
@@ -86,6 +104,27 @@ describe('BridgeClient', () => {
     )
   })
 
+  test('stops ready retries after the host rejects initialization', async () => {
+    vi.useFakeTimers()
+    const parentSpy = vi.spyOn(window.parent, 'postMessage')
+    const bridge = new BridgeClient(window)
+
+    dispatchHostMessage({
+      type: 'lattice.host.error',
+      code: 'denied',
+      message: 'Initialization denied'
+    })
+
+    await expect(bridge.init).rejects.toMatchObject({
+      name: 'BridgeRemoteError',
+      code: 'denied',
+      message: 'Initialization denied'
+    })
+    vi.advanceTimersByTime(1_000)
+    expect(parentSpy).toHaveBeenCalledTimes(1)
+    bridge.dispose()
+  })
+
   test('routes host init, result, error, and theme messages only from parent with matching nonce', async () => {
     const bridge = new BridgeClient(window)
     const first = bridge.call('example.lattice-plugin/reference', 'describe', {})
@@ -97,7 +136,7 @@ describe('BridgeClient', () => {
       type: 'lattice.host.init',
       version: '1',
       pluginId: 'example.lattice-plugin',
-      pluginVersion: '0.2.1-alpha.1',
+      pluginVersion: '0.2.1-alpha.2',
       pluginRoute: 'reference',
       locale: 'en-US',
       interfaces: [
@@ -148,7 +187,7 @@ describe('BridgeClient', () => {
     await expect(initPromise).resolves.toEqual({
       version: '1',
       pluginId: 'example.lattice-plugin',
-      pluginVersion: '0.2.1-alpha.1',
+      pluginVersion: '0.2.1-alpha.2',
       pluginRoute: 'reference',
       locale: 'en-US',
       interfaces: [
