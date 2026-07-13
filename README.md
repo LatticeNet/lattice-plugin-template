@@ -94,6 +94,8 @@ cp -R ui/dist/. "$tmpdir/bundle/ui"
 `pluginpack` normalizes archive paths, rejects unsafe names and symlinks, stamps
 tar entries at the Unix epoch, zeros uid/gid, and uses mode `0700` for
 directories and runtime binaries (`bin/**/plugin`) with `0600` for other files.
+Release builds pin Go 1.26.4 so compiler patch changes cannot silently alter
+the signed runtime bytes.
 
 ## Signing
 

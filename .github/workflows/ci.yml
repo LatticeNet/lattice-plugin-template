@@ -16,8 +16,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.26.x'
-          check-latest: true
+          go-version: '1.26.4'
           cache-dependency-path: |
             system-go/go.mod
             tools/pluginpack/go.mod
@@ -85,6 +84,7 @@ jobs:
           find "$RUNNER_TEMP/bundle-src" -exec touch -t 202601010101 {} +
           digest_two="$(go run ./tools/pluginpack/cmd/pluginpack -source "$RUNNER_TEMP/bundle-src" -output "$RUNNER_TEMP/reference-2.tar.gz")"
           expected="$(node -p "require('./manifest.json').bundle.digest_sha256")"
+          printf 'bundle digest actual=%s expected=%s\n' "$digest_one" "$expected"
           test "$digest_one" = "$digest_two"
           test "$digest_one" = "$expected"
           cmp -s "$RUNNER_TEMP/reference-1.tar.gz" "$RUNNER_TEMP/reference-2.tar.gz"
