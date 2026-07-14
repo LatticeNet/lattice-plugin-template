@@ -4,3 +4,14 @@ ui/node_modules/
 ui/dist/
 *.tar.gz
 *.wasm
+
+# Publisher signing material. `pluginsign` reads a raw 32-byte Ed25519 seed from a
+# file path, so a stray `seed.bin` in the working tree is one `git add -A` away from
+# being published. Never commit key material; keep seeds outside the repo.
+*.key
+*.pem
+*.seed
+seed
+seed.*
+*_seed
+*.bin
