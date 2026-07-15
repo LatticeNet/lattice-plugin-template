@@ -20,13 +20,14 @@ import (
 // Copy this file into every plugin repository. It is the one test that cannot be
 // satisfied by a plugin that lies about itself.
 func TestManifestInterfacesAreServedAsDeclared(t *testing.T) {
+	rt := &runtime{host: refuseHostCalls{t}}
 	for _, iface := range loadManifestInterfaces(t) {
 		for _, method := range iface.Methods {
-			resp := handle(request{
+			resp := rt.handle(request{
 				Action:  "call",
 				Service: iface.Service,
 				Method:  method.Name,
-				Payload: map[string]any{},
+				Payload: json.RawMessage("{}"),
 			})
 			served := !refusedAsUnknown(resp)
 
@@ -59,6 +60,15 @@ func TestManifestInterfacesAreServedAsDeclared(t *testing.T) {
 // refusedAsUnknown separates "I do not implement this" from "I implement this and your
 // payload is wrong". Only the former means the artifact cannot serve the method — a
 // validation error proves the method is wired up.
+// refuseHostCalls fails the test if the dispatcher reaches for the host. Probing which
+// methods exist must never have a side effect.
+type refuseHostCalls struct{ t *testing.T }
+
+func (h refuseHostCalls) call(method string, _ any) (json.RawMessage, error) {
+	h.t.Fatalf("conformance probe must not reach the host, but it called %q", method)
+	return nil, nil
+}
+
 func refusedAsUnknown(resp response) bool {
 	if resp.OK {
 		return false
