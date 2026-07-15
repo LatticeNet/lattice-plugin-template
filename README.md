@@ -1,7 +1,7 @@
 # Lattice Bundle v2 Reference Plugin
 
 `lattice-plugin-template` is the canonical self-contained Bundle v2 reference
-plugin for Lattice `0.2.1-alpha.3`.
+plugin for Lattice `0.2.1-alpha.4`.
 
 It demonstrates four boundaries that production plugins must keep explicit:
 
@@ -15,6 +15,45 @@ It demonstrates four boundaries that production plugins must keep explicit:
 - signing discipline: the release manifest is bound to the checked-in alpha
   artifact digest and signed by the LatticeNet publisher key. Local development
   must clear the digest and signature before repackaging different bytes.
+
+## The host-risk operation flow (spec §9.3)
+
+A plugin may compile intent into a plan; it may never apply one. This reference
+implements the full flow, and it is the shape production plugins copy:
+
+1. **plan** — the `plan`-effect interface method (`example.lattice-plugin/reference`
+   / `plan`) returns a `PluginOperationPlan`: a summary, the target nodes, a redacted
+   preview, ordered steps, a rollback statement, and opaque `data`. It applies
+   nothing. The server bounds it, authorizes every target, and stores it as a
+   **pending approval** whose typed columns record the plugin version, artifact
+   digest, service, method, request hash, and targets.
+
+2. **approve** — an operator reads the preview and approves the exact plan hash. The
+   server re-checks every bound column against live state at approve/execute time; a
+   plugin that was upgraded, re-signed, disabled, or whose targets are no longer
+   authorized is refused.
+
+3. **execute** — the approval executor, and nothing else, invokes the plugin's
+   `execute` action with a one-time operation grant **bound on the host side**. The
+   plugin never receives the grant. It reads the approved targets and calls the
+   `task.enqueue` host call once per node.
+
+4. **enqueue** — `task:run` is *eligibility*, not authorization. The grant says which
+   nodes, under which approval, and how many times. The host refuses any task aimed
+   at an unapproved node, past the budget, or belonging to another plugin — and
+   applies the operator's own task validation, so a plugin can reach no wider an
+   interpreter set or script than an operator could.
+
+Rules a production plugin must keep:
+
+- **Never apply directly.** The only way to change a host is `plan` → operator
+  approval → `execute` → `task.enqueue`. There is no in-plugin apply.
+- **Redact the preview.** Secrets never appear in a plan; put reversible material in
+  the encrypted secret store (§9.4), not in the plan or a log.
+- **Quote everything you interpolate into a script.** The reference single-quotes the
+  approval id and node id so neither can break out of the `sh` command.
+- **Declare `task:run`** to enqueue, and — for a runtime-backed operation service —
+  declare the service `backing: "runtime"`.
 
 ## Bundle Layout
 

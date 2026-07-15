@@ -4,14 +4,15 @@
   "name": "Lattice Bundle Reference Plugin",
   "type": "system",
   "capabilities": [
-    "network:plan"
+    "network:plan",
+    "task:run"
   ],
-  "version": "0.2.1-alpha.3",
+  "version": "0.2.1-alpha.4",
   "publisher": "latticenet",
-  "signature_ed25519": "qmzNktLpq5tGDulNK4hFqPLLxs/qhXC4tiQhx2kc+x746He7y7ZwLrRARe7MwcE8ih4lGIm4xox3KrtzPXqJCw==",
+  "signature_ed25519": "LwoiIGnuDhSjXIhW8LKeBihhkOtHH6L6jOFCDzJWlcpA7zFIiTLB0GVBzQsiB1r6gVW7nqYwhDetyC4ogf8TAQ==",
   "bundle": {
     "format": "tar+gzip",
-    "digest_sha256": "a7631567e67d0b0d2f8c971af3b3b5414cf8f2a00c88c396774c4190adb689d1"
+    "digest_sha256": "7817d1e778ffc17278968b6e4d03096bdf4264dc7bc932cac2daaeac80eaefdc"
   },
   "runtime": {
     "protocol": "stdio-json-v1",
