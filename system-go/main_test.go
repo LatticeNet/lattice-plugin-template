@@ -101,10 +101,10 @@ func TestCallActionSupportsReferenceDescribeAndPlan(t *testing.T) {
 		Action:  "call",
 		Service: "example.lattice-plugin/reference",
 		Method:  "plan",
-		Payload: map[string]any{
+		Payload: mustJSON(map[string]any{
 			"node_id":    "node-a",
 			"public_tcp": []any{80, 443},
-		},
+		}),
 	})
 	if !planResp.OK {
 		t.Fatalf("call plan ok = false, error = %q", planResp.Error)
@@ -118,6 +118,14 @@ func TestCallActionSupportsReferenceDescribeAndPlan(t *testing.T) {
 	if !strings.Contains(planBody.Plan, "# node_id = node-a") {
 		t.Fatalf("plan result missing node id:\n%s", planBody.Plan)
 	}
+}
+
+func mustJSON(value any) json.RawMessage {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		panic(err)
+	}
+	return raw
 }
 
 func TestUnsupportedActionFailsClosed(t *testing.T) {

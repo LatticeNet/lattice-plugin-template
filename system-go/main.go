@@ -1,12 +1,13 @@
 package main
 
 import (
-	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
+
+	latticeplugin "github.com/LatticeNet/lattice-sdk/plugin"
 )
 
 const (
@@ -18,67 +19,76 @@ const (
 var interfaces = []string{"example.describe", "example.plan"}
 var requiredScopes = []string{"network:plan"}
 
-type request struct {
-	Action  string         `json:"action"`
-	Service string         `json:"service,omitempty"`
-	Method  string         `json:"method,omitempty"`
-	Payload map[string]any `json:"payload"`
-}
-
-type response struct {
-	OK      bool            `json:"ok"`
-	Plan    string          `json:"plan,omitempty"`
-	Message string          `json:"message,omitempty"`
-	Result  json.RawMessage `json:"result,omitempty"`
-	Error   string          `json:"error,omitempty"`
-}
+type request = latticeplugin.Request
+type response = latticeplugin.Response
 
 func main() {
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1<<20)
-	for scanner.Scan() {
-		var req request
-		if err := json.Unmarshal(scanner.Bytes(), &req); err != nil {
-			write(response{OK: false, Error: "invalid request: " + err.Error()})
-			continue
-		}
-		write(handle(req))
-	}
+	_ = latticeplugin.Serve(context.Background(), latticeplugin.HandlerFunc(
+		func(_ context.Context, req latticeplugin.Request, _ *latticeplugin.HostClient) latticeplugin.Response {
+			return handle(req)
+		},
+	))
 }
 
 func handle(req request) response {
 	switch req.Action {
-	case "describe":
+	case latticeplugin.ActionDescribe:
 		body, _ := json.Marshal(describeBody())
-		return response{OK: true, Result: body, Message: "reference plugin interface surface"}
-	case "health":
-		return response{OK: true, Message: "example plugin healthy"}
-	case "plan":
-		return response{OK: true, Plan: renderPlan(req.Payload), Message: "dry-run plan generated"}
-	case "call":
+		return latticeplugin.RawResultResponse(body, "reference plugin interface surface")
+	case latticeplugin.ActionHealth:
+		return latticeplugin.MessageResponse("example plugin healthy")
+	case latticeplugin.ActionPlan:
+		payload, err := payloadMap(req.Payload)
+		if err != nil {
+			return latticeplugin.ErrorResponse(err)
+		}
+		return latticeplugin.PlanResponse(renderPlan(payload), "dry-run plan generated")
+	case latticeplugin.ActionCall:
 		return handleCall(req)
 	default:
-		return response{OK: false, Error: fmt.Sprintf("unsupported action %q", req.Action)}
+		return latticeplugin.ErrorResponse(fmt.Errorf("unsupported action %q", req.Action))
 	}
 }
 
 func handleCall(req request) response {
-	if req.Service != "example.lattice-plugin/reference" {
-		return response{OK: false, Error: fmt.Sprintf("unsupported service %q", req.Service)}
+	call, err := req.CallPayload()
+	if err != nil {
+		return latticeplugin.ErrorResponse(err)
+	}
+	if call.Service != "example.lattice-plugin/reference" {
+		return latticeplugin.ErrorResponse(fmt.Errorf("unsupported service %q", call.Service))
 	}
 
-	switch req.Method {
+	switch call.Method {
 	case "describe":
 		body, _ := json.Marshal(describeBody())
-		return response{OK: true, Result: body, Message: "describe result generated"}
+		return latticeplugin.RawResultResponse(body, "describe result generated")
 	case "plan":
+		payload, err := payloadMap(call.Payload)
+		if err != nil {
+			return latticeplugin.ErrorResponse(err)
+		}
 		body, _ := json.Marshal(map[string]any{
-			"plan": renderPlan(req.Payload),
+			"plan": renderPlan(payload),
 		})
-		return response{OK: true, Result: body, Message: "plan result generated"}
+		return latticeplugin.RawResultResponse(body, "plan result generated")
 	default:
-		return response{OK: false, Error: fmt.Sprintf("unsupported method %q", req.Method)}
+		return latticeplugin.ErrorResponse(fmt.Errorf("unsupported method %q", call.Method))
 	}
+}
+
+func payloadMap(raw json.RawMessage) (map[string]any, error) {
+	if len(raw) == 0 {
+		return map[string]any{}, nil
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, fmt.Errorf("invalid payload: %w", err)
+	}
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	return payload, nil
 }
 
 func describeBody() map[string]any {
@@ -109,8 +119,4 @@ func renderPlan(payload map[string]any) string {
 	}
 	parts = append(parts, "# No host changes are made by this template.")
 	return strings.Join(parts, "\n")
-}
-
-func write(resp response) {
-	_ = json.NewEncoder(os.Stdout).Encode(resp)
 }
