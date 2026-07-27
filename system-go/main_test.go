@@ -1,36 +1,42 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"testing"
 )
 
 type manifestContract struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Version      string   `json:"version"`
+	Capabilities []string `json:"capabilities"`
+	Interfaces   []struct {
+		Service string `json:"service"`
+		Backing string `json:"backing"`
+		Methods []struct {
+			Name                 string   `json:"name"`
+			OperatorTargetFields []string `json:"operator_target_fields"`
+		} `json:"methods"`
+	} `json:"interfaces"`
 }
 
 func TestDescribeMatchesManifestContract(t *testing.T) {
-	raw, err := os.ReadFile("../manifest.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var manifest manifestContract
-	if err := json.Unmarshal(raw, &manifest); err != nil {
-		t.Fatal(err)
-	}
+	manifest := readManifest(t)
 
 	resp := handle(request{Action: "describe"})
 	if !resp.OK {
 		t.Fatalf("describe ok = false, error = %q", resp.Error)
 	}
 	var body struct {
-		ID      string `json:"id"`
-		Name    string `json:"name"`
-		Version string `json:"version"`
+		ID           string   `json:"id"`
+		Name         string   `json:"name"`
+		Version      string   `json:"version"`
+		Capabilities []string `json:"capabilities"`
 	}
 	if err := json.Unmarshal(resp.Result, &body); err != nil {
 		t.Fatal(err)
@@ -43,6 +49,37 @@ func TestDescribeMatchesManifestContract(t *testing.T) {
 	}
 	if body.Version != manifest.Version {
 		t.Fatalf("describe version = %q, manifest version = %q", body.Version, manifest.Version)
+	}
+	if !sameStrings(body.Capabilities, manifest.Capabilities) {
+		t.Fatalf("describe capabilities = %+v, manifest capabilities = %+v", body.Capabilities, manifest.Capabilities)
+	}
+}
+
+func TestManifestDeclaresRuntimeBackingAndOperatorTargetBinding(t *testing.T) {
+	manifest := readManifest(t)
+
+	if len(manifest.Interfaces) != 1 {
+		t.Fatalf("manifest interfaces = %d, want 1", len(manifest.Interfaces))
+	}
+	if manifest.Interfaces[0].Backing != "runtime" {
+		t.Fatalf("manifest backing = %q, want runtime", manifest.Interfaces[0].Backing)
+	}
+	if !contains(manifest.Capabilities, "http:operator-target") {
+		t.Fatal("manifest must declare http:operator-target for the operator probe method")
+	}
+
+	found := false
+	for _, method := range manifest.Interfaces[0].Methods {
+		if method.Name != "probe_operator_target" {
+			continue
+		}
+		found = true
+		if !sameStrings(method.OperatorTargetFields, []string{"base_url"}) {
+			t.Fatalf("operator target fields = %+v, want [base_url]", method.OperatorTargetFields)
+		}
+	}
+	if !found {
+		t.Fatal("manifest missing probe_operator_target method")
 	}
 }
 
@@ -58,10 +95,13 @@ func TestHealthReportsReady(t *testing.T) {
 }
 
 func TestRenderPlanIsDeterministicAndNonMutating(t *testing.T) {
-	plan := renderPlan(map[string]any{
+	plan, err := renderPlan(mustRaw(t, map[string]any{
 		"public_tcp": []any{80, 443},
 		"node_id":    "node-a",
-	})
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	nodeAt := strings.Index(plan, "# node_id = node-a")
 	tcpAt := strings.Index(plan, "# public_tcp = [80 443]")
@@ -76,47 +116,111 @@ func TestRenderPlanIsDeterministicAndNonMutating(t *testing.T) {
 	}
 }
 
-func TestCallActionSupportsReferenceDescribeAndPlan(t *testing.T) {
-	describeResp := handle(request{
-		Action:  "call",
-		Service: "example.lattice-plugin/reference",
-		Method:  "describe",
-	})
-	if !describeResp.OK {
-		t.Fatalf("call describe ok = false, error = %q", describeResp.Error)
-	}
-	var describeBody struct {
-		ID      string `json:"id"`
-		Name    string `json:"name"`
-		Version string `json:"version"`
-	}
-	if err := json.Unmarshal(describeResp.Result, &describeBody); err != nil {
-		t.Fatal(err)
-	}
-	if describeBody.ID != pluginID || describeBody.Name != pluginName || describeBody.Version != pluginVersion {
-		t.Fatalf("unexpected describe body: %+v", describeBody)
+func TestCallActionSupportsManifestDeclaredRuntimeMethods(t *testing.T) {
+	manifest := readManifest(t)
+	host := &fakeHostCaller{responses: []json.RawMessage{json.RawMessage(`{"status_code":204}`)}}
+	rt := &runtime{host: host}
+
+	for _, iface := range manifest.Interfaces {
+		if iface.Backing != "runtime" {
+			continue
+		}
+		for _, method := range iface.Methods {
+			payload := json.RawMessage(`{}`)
+			if method.Name == "plan" {
+				payload = mustRaw(t, map[string]any{
+					"node_id":    "node-a",
+					"public_tcp": []any{80, 443},
+				})
+			}
+			if method.Name == "probe_operator_target" {
+				payload = mustRaw(t, map[string]any{
+					"base_url": "http://127.0.0.1:3000/health",
+				})
+			}
+			resp := rt.handle(request{
+				Action: "call",
+				Payload: mustRaw(t, callPayload{
+					Service: iface.Service,
+					Method:  method.Name,
+					Payload: payload,
+				}),
+			})
+			if !resp.OK {
+				t.Fatalf("%s/%s ok = false, error = %q", iface.Service, method.Name, resp.Error)
+			}
+		}
 	}
 
-	planResp := handle(request{
-		Action:  "call",
-		Service: "example.lattice-plugin/reference",
-		Method:  "plan",
-		Payload: map[string]any{
-			"node_id":    "node-a",
-			"public_tcp": []any{80, 443},
-		},
+	if len(host.calls) != 1 || host.calls[0].method != "http.operator.do" {
+		t.Fatalf("operator probe should use exactly one host call, got %+v", host.calls)
+	}
+	if got := host.calls[0].params["url"]; got != "http://127.0.0.1:3000/health" {
+		t.Fatalf("operator probe url = %v", got)
+	}
+}
+
+func TestOperatorTargetProbeFailsClosedBeforeHostCall(t *testing.T) {
+	host := &fakeHostCaller{}
+	rt := &runtime{host: host}
+
+	resp := rt.handle(request{
+		Action: "call",
+		Payload: mustRaw(t, callPayload{
+			Service: pluginID + "/reference",
+			Method:  "probe_operator_target",
+			Payload: mustRaw(t, map[string]any{"base_url": "file:///etc/passwd"}),
+		}),
 	})
-	if !planResp.OK {
-		t.Fatalf("call plan ok = false, error = %q", planResp.Error)
+	if resp.OK {
+		t.Fatal("invalid operator target returned ok=true")
 	}
-	var planBody struct {
-		Plan string `json:"plan"`
+	if !strings.Contains(resp.Error, "absolute http(s) URL") {
+		t.Fatalf("unexpected error: %q", resp.Error)
 	}
-	if err := json.Unmarshal(planResp.Result, &planBody); err != nil {
+	if len(host.calls) != 0 {
+		t.Fatalf("invalid operator target reached host: %+v", host.calls)
+	}
+
+	secretURL := "http://127.0.0.1:3000/very-secret"
+	host = &fakeHostCaller{errs: []error{errors.New("dial " + secretURL + ": refused")}}
+	resp = (&runtime{host: host}).handle(request{
+		Action: "call",
+		Payload: mustRaw(t, callPayload{
+			Service: pluginID + "/reference",
+			Method:  "probe_operator_target",
+			Payload: mustRaw(t, map[string]any{"base_url": secretURL}),
+		}),
+	})
+	if resp.OK {
+		t.Fatal("host failure returned ok=true")
+	}
+	if strings.Contains(resp.Error, "very-secret") || resp.Error != "operator target probe failed" {
+		t.Fatalf("operator target error leaked host detail: %q", resp.Error)
+	}
+}
+
+func TestStdioHostCallerRoundTrip(t *testing.T) {
+	responses := bufio.NewScanner(strings.NewReader(`{"host_response":{"id":"h1","ok":true,"result":{"status_code":204}}}` + "\n"))
+	var output bytes.Buffer
+	host := &stdioHostCaller{responses: responses, output: &output}
+
+	raw, err := host.call("http.operator.do", map[string]any{
+		"method": "GET",
+		"url":    "http://127.0.0.1:3000/health",
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(planBody.Plan, "# node_id = node-a") {
-		t.Fatalf("plan result missing node id:\n%s", planBody.Plan)
+	if !bytes.Contains(raw, []byte(`"status_code":204`)) {
+		t.Fatalf("host result = %s, want status_code 204", raw)
+	}
+	var out hostCallEnvelope
+	if err := json.Unmarshal(bytes.TrimSpace(output.Bytes()), &out); err != nil {
+		t.Fatalf("decode host call %q: %v", output.String(), err)
+	}
+	if out.HostCall.ID != "h1" || out.HostCall.Method != "http.operator.do" {
+		t.Fatalf("host call envelope = %+v", out.HostCall)
 	}
 }
 
@@ -133,9 +237,11 @@ func TestUnsupportedActionFailsClosed(t *testing.T) {
 
 func TestCallActionFailsClosedForUnknownServiceOrMethod(t *testing.T) {
 	serviceResp := handle(request{
-		Action:  "call",
-		Service: "example.lattice-plugin/other",
-		Method:  "plan",
+		Action: "call",
+		Payload: mustRaw(t, callPayload{
+			Service: "example.lattice-plugin/other",
+			Method:  "plan",
+		}),
 	})
 	if serviceResp.OK {
 		t.Fatal("unknown service returned ok=true")
@@ -145,9 +251,11 @@ func TestCallActionFailsClosedForUnknownServiceOrMethod(t *testing.T) {
 	}
 
 	methodResp := handle(request{
-		Action:  "call",
-		Service: "example.lattice-plugin/reference",
-		Method:  "apply",
+		Action: "call",
+		Payload: mustRaw(t, callPayload{
+			Service: "example.lattice-plugin/reference",
+			Method:  "apply",
+		}),
 	})
 	if methodResp.OK {
 		t.Fatal("unknown method returned ok=true")
@@ -155,4 +263,76 @@ func TestCallActionFailsClosedForUnknownServiceOrMethod(t *testing.T) {
 	if !strings.Contains(methodResp.Error, "unsupported method") {
 		t.Fatalf("unexpected method error: %q", methodResp.Error)
 	}
+}
+
+type recordedHostCall struct {
+	method string
+	params map[string]any
+}
+
+type fakeHostCaller struct {
+	responses []json.RawMessage
+	errs      []error
+	calls     []recordedHostCall
+}
+
+func (f *fakeHostCaller) call(method string, params any) (json.RawMessage, error) {
+	raw, _ := json.Marshal(params)
+	decoded := map[string]any{}
+	_ = json.Unmarshal(raw, &decoded)
+	f.calls = append(f.calls, recordedHostCall{method: method, params: decoded})
+	if len(f.errs) > 0 {
+		err := f.errs[0]
+		f.errs = f.errs[1:]
+		return nil, err
+	}
+	if len(f.responses) == 0 {
+		return nil, errors.New("missing fake host response")
+	}
+	out := f.responses[0]
+	f.responses = f.responses[1:]
+	return out, nil
+}
+
+func readManifest(t *testing.T) manifestContract {
+	t.Helper()
+	raw, err := os.ReadFile("../manifest.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest manifestContract
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	return manifest
+}
+
+func mustRaw(t *testing.T, value any) json.RawMessage {
+	t.Helper()
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func contains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func sameStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
