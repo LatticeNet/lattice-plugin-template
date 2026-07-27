@@ -7,12 +7,12 @@
     "network:plan",
     "http:operator-target"
   ],
-  "version": "0.2.1-alpha.5",
+  "version": "0.2.1-alpha.6",
   "publisher": "latticenet",
-  "signature_ed25519": "g5Tf8u+a/YWdpqqxysAkaZfnSevSTFvF8/zcwSEV0jm7jgKjFfxqWebTT3vo+1Q6VAD0pRggAGOteNQpYCzjCg==",
+  "signature_ed25519": "pjJn30lKWvnKK8Pf0ROgij0JaHn9e+Rl/HwgkY37um+vSYZ7UsPzBguEOnvBPSQZWkA+AmAVkr0xepROKT4TBQ==",
   "bundle": {
     "format": "tar+gzip",
-    "digest_sha256": "c4bfe8be4065e9fd64780259e88d641518fbe2555aeecf6221ecb39ef5d9e770"
+    "digest_sha256": "0a806be828bb55cfd33e9a935bb7fceb3ed6a164fbf08a547388f615073d4bb2"
   },
   "runtime": {
     "protocol": "stdio-json-v1",
