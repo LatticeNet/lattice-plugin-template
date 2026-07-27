@@ -14,7 +14,7 @@ import (
 const (
 	pluginID      = "example.lattice-plugin"
 	pluginName    = "Lattice Bundle Reference Plugin"
-	pluginVersion = "0.2.1-alpha.3"
+	pluginVersion = "0.2.1-alpha.5"
 )
 
 var capabilities = []string{"network:plan", "http:operator-target"}
