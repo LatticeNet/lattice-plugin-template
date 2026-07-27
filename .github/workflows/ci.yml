@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   verify:
@@ -44,6 +45,8 @@ jobs:
         run: go test -race ./tools/pluginpack/...
 
       - name: install ui dependencies
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: ui
         run: npm ci
 
