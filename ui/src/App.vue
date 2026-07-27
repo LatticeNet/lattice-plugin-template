@@ -2,19 +2,19 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Activity, ShieldCheck, Workflow } from '@lucide/vue'
 
-import { BridgeClient, type HostInterface, type HostTheme } from './bridge'
+import { BridgeClient, type CallableInterface as HostInterface, type HostInit, type HostTheme } from '@latticenet/plugin-bridge'
 
 let bridge: BridgeClient | null = null
 const bootstrapError = ref('')
 
 try {
-  bridge = new BridgeClient(window)
+  bridge = new BridgeClient({ window, expectedPluginId: 'example.lattice-plugin', expectedRoutes: ['reference'], idPrefix: 'template' })
 } catch (cause: unknown) {
   bootstrapError.value = cause instanceof Error ? cause.message : 'bridge bootstrap failed'
 }
 
 const hostStatus = ref('Waiting for host initialization')
-const hostInit = ref<Record<string, unknown> | null>(null)
+const hostInit = ref<HostInit | null>(null)
 const hostInterfaces = ref<HostInterface[]>([])
 const theme = ref<HostTheme | null>(null)
 const nodeId = ref('node-a')
