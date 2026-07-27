@@ -1,13 +1,15 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
 	"strings"
 	"testing"
+
+	latticeplugin "github.com/LatticeNet/lattice-sdk/plugin"
 )
 
 type manifestContract struct {
@@ -152,7 +154,7 @@ func TestCallActionSupportsManifestDeclaredRuntimeMethods(t *testing.T) {
 		}
 	}
 
-	if len(host.calls) != 1 || host.calls[0].method != "http.operator.do" {
+	if len(host.calls) != 1 || host.calls[0].method != latticeplugin.HostMethodHTTPOperatorDo {
 		t.Fatalf("operator probe should use exactly one host call, got %+v", host.calls)
 	}
 	if got := host.calls[0].params["url"]; got != "http://127.0.0.1:3000/health" {
@@ -200,12 +202,15 @@ func TestOperatorTargetProbeFailsClosedBeforeHostCall(t *testing.T) {
 	}
 }
 
-func TestStdioHostCallerRoundTrip(t *testing.T) {
-	responses := bufio.NewScanner(strings.NewReader(`{"host_response":{"id":"h1","ok":true,"result":{"status_code":204}}}` + "\n"))
+func TestSDKHostClientRoundTrip(t *testing.T) {
+	responses := strings.NewReader(`{"host_response":{"id":"h1","ok":true,"result":{"status_code":204}}}` + "\n")
 	var output bytes.Buffer
-	host := &stdioHostCaller{responses: responses, output: &output}
+	host := latticeplugin.NewHostClient(latticeplugin.HostClientOptions{
+		Output:    &output,
+		Responses: responses,
+	})
 
-	raw, err := host.call("http.operator.do", map[string]any{
+	raw, err := host.Call(context.Background(), latticeplugin.HostMethodHTTPOperatorDo, map[string]any{
 		"method": "GET",
 		"url":    "http://127.0.0.1:3000/health",
 	})
@@ -215,11 +220,17 @@ func TestStdioHostCallerRoundTrip(t *testing.T) {
 	if !bytes.Contains(raw, []byte(`"status_code":204`)) {
 		t.Fatalf("host result = %s, want status_code 204", raw)
 	}
-	var out hostCallEnvelope
+	var out struct {
+		HostCall struct {
+			ID     string         `json:"id"`
+			Method string         `json:"method"`
+			Params map[string]any `json:"params"`
+		} `json:"host_call"`
+	}
 	if err := json.Unmarshal(bytes.TrimSpace(output.Bytes()), &out); err != nil {
 		t.Fatalf("decode host call %q: %v", output.String(), err)
 	}
-	if out.HostCall.ID != "h1" || out.HostCall.Method != "http.operator.do" {
+	if out.HostCall.ID != "h1" || out.HostCall.Method != latticeplugin.HostMethodHTTPOperatorDo {
 		t.Fatalf("host call envelope = %+v", out.HostCall)
 	}
 }
