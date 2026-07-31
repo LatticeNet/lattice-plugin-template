@@ -160,6 +160,7 @@ func TestPackRejectsSymlinks(t *testing.T) {
 
 func TestPackFileWritesOnlyUnderLatticeDev(t *testing.T) {
 	root := writeTemplateRoot(t)
+	withWorkingDir(t, root)
 	source := writeBundleSource(t, root)
 	output := filepath.Join(root, ".lattice-dev", "reference-plugin.tar.gz")
 
@@ -179,6 +180,7 @@ func TestPackFileWritesOnlyUnderLatticeDev(t *testing.T) {
 
 func TestPackFileRejectsOutputOutsideLatticeDev(t *testing.T) {
 	root := writeTemplateRoot(t)
+	withWorkingDir(t, root)
 	source := writeBundleSource(t, root)
 	output := filepath.Join(root, "manifest.json")
 	original := []byte("production manifest\n")
@@ -195,8 +197,30 @@ func TestPackFileRejectsOutputOutsideLatticeDev(t *testing.T) {
 	}
 }
 
+func TestPackFileAllowsTemporaryOutputOutsideRepo(t *testing.T) {
+	root := writeTemplateRoot(t)
+	withWorkingDir(t, root)
+	source := t.TempDir()
+	writeFile(t, source, "ui/index.html", []byte("<!doctype html>"))
+	writeFile(t, source, "bin/linux-amd64/plugin", []byte("amd64"))
+	writeFile(t, source, "bin/linux-arm64/plugin", []byte("arm64"))
+	output := filepath.Join(t.TempDir(), "reference-plugin.tar.gz")
+
+	digest, err := PackFile(source, output)
+	if err != nil {
+		t.Fatalf("PackFile returned error for repo-external output: %v", err)
+	}
+	if digest == "" {
+		t.Fatal("PackFile returned an empty digest")
+	}
+	if _, err := os.Stat(output); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPackFileRejectsOutputInsideSource(t *testing.T) {
 	root := writeTemplateRoot(t)
+	withWorkingDir(t, root)
 	source := writeBundleSource(t, root)
 	output := filepath.Join(source, "reference-plugin.tar.gz")
 
@@ -211,6 +235,7 @@ func TestPackFileRejectsOutputInsideSource(t *testing.T) {
 
 func TestPackFileRejectsHardlinkedOutput(t *testing.T) {
 	root := writeTemplateRoot(t)
+	withWorkingDir(t, root)
 	source := writeBundleSource(t, root)
 	manifestPath := filepath.Join(root, "manifest.json")
 	original := []byte("production manifest\n")
@@ -233,6 +258,7 @@ func TestPackFileRejectsHardlinkedOutput(t *testing.T) {
 
 func TestPackFileFailureLeavesExistingOutputUntouched(t *testing.T) {
 	root := writeTemplateRoot(t)
+	withWorkingDir(t, root)
 	source := writeBundleSource(t, root)
 	if err := os.Symlink("index.html", filepath.Join(source, "ui", "link.html")); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
@@ -298,6 +324,22 @@ func mustRead(t *testing.T, path string) []byte {
 		t.Fatal(err)
 	}
 	return raw
+}
+
+func withWorkingDir(t *testing.T, dir string) {
+	t.Helper()
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(old); err != nil {
+			t.Fatal(err)
+		}
+	})
 }
 
 func sum(data []byte) string {

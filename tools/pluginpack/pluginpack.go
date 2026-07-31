@@ -61,7 +61,10 @@ func PackFile(sourceDir, outputPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	repoRoot, err := findTemplateRoot(filepath.Dir(absOutput))
+	repoRoot, err := findTemplateRootAbove(filepath.Dir(absOutput))
+	if err != nil {
+		repoRoot, err = findTemplateRoot()
+	}
 	if err != nil {
 		return "", err
 	}
@@ -96,7 +99,15 @@ func PackFile(sourceDir, outputPath string) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-func findTemplateRoot(start string) (string, error) {
+func findTemplateRoot() (string, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	return findTemplateRootAbove(wd)
+}
+
+func findTemplateRootAbove(start string) (string, error) {
 	dir := filepath.Clean(start)
 	for {
 		if fileExists(filepath.Join(dir, "manifest.json")) &&
@@ -113,15 +124,19 @@ func findTemplateRoot(start string) (string, error) {
 
 func validateOutputPath(repoRoot, sourceDir, outputPath string) error {
 	devDir := filepath.Join(repoRoot, ".lattice-dev")
-	if rel, err := filepath.Rel(devDir, outputPath); err != nil || rel == "." || rel == ".." ||
-		strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return fmt.Errorf("output must be a file under %s", devDir)
-	}
 	if rel, err := filepath.Rel(sourceDir, outputPath); err == nil && (rel == "." || (rel != ".." &&
 		!strings.HasPrefix(rel, ".."+string(os.PathSeparator)))) {
 		return fmt.Errorf("output %s must not be inside source directory %s", outputPath, sourceDir)
 	}
-	return rejectSymlinkAncestors(devDir, filepath.Dir(outputPath))
+	if rel, err := filepath.Rel(repoRoot, outputPath); err == nil && rel != ".." &&
+		!strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		if rel, err := filepath.Rel(devDir, outputPath); err != nil || rel == "." || rel == ".." ||
+			strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			return fmt.Errorf("output inside the template repo must be a file under %s", devDir)
+		}
+		return rejectSymlinkAncestors(devDir, filepath.Dir(outputPath))
+	}
+	return nil
 }
 
 func rejectSymlinkAncestors(root, targetDir string) error {
