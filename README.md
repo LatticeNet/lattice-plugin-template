@@ -83,17 +83,21 @@ Run Go tests within each Go module:
 Build a bundle workspace and package it deterministically:
 
 ```bash
-tmpdir="$(mktemp -d)"
+mkdir -p .lattice-dev
+tmpdir="$(mktemp -d .lattice-dev/manual.XXXXXX)"
+trap 'rm -rf "$tmpdir"' EXIT
 mkdir -p "$tmpdir/bundle/bin/linux-amd64" "$tmpdir/bundle/bin/linux-arm64" "$tmpdir/bundle/ui"
-(cd system-go && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -buildvcs=false -o "$tmpdir/bundle/bin/linux-amd64/plugin" .)
-(cd system-go && GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -buildvcs=false -o "$tmpdir/bundle/bin/linux-arm64/plugin" .)
+(cd system-go && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -buildvcs=false -o "../$tmpdir/bundle/bin/linux-amd64/plugin" .)
+(cd system-go && GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -buildvcs=false -o "../$tmpdir/bundle/bin/linux-arm64/plugin" .)
 cp -R ui/dist/. "$tmpdir/bundle/ui"
-(cd tools/pluginpack && go run ./cmd/pluginpack -source "$tmpdir/bundle" -output "$tmpdir/reference-plugin.tar.gz")
+(cd tools/pluginpack && go run ./cmd/pluginpack -source "../../$tmpdir/bundle" -output "../../.lattice-dev/reference-plugin.tar.gz")
 ```
 
 `pluginpack` normalizes archive paths, rejects unsafe names and symlinks, stamps
 tar entries at the Unix epoch, zeros uid/gid, and uses mode `0700` for
 directories and runtime binaries (`bin/**/plugin`) with `0600` for other files.
+It only publishes archives under `.lattice-dev/` so local packaging cannot
+overwrite the checked-in `manifest.json`.
 Release builds pin Node.js 22 and Go 1.26.4. Both toolchains are part of the
 signed byte contract: changing either can alter the bundled UI or runtime even
 when the source tree is unchanged.
@@ -113,7 +117,9 @@ make dev-key
 This writes `.lattice-dev/publisher.seed` and
 `.lattice-dev/plugin-trust.local.json`. The entire `.lattice-dev/` directory is
 gitignored. Do not copy these files into a production trust file, CI job, or
-release process.
+release process. The Makefile intentionally fixes generated seed, trust, bundle,
+and dev manifest paths under `.lattice-dev/`; `DEV_HANDLE`, `DEV_PUBLISHER`, and
+`DEVPLUGIN` are the supported overrides.
 
 Build a local bundle and dev manifest:
 

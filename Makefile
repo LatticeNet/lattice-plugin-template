@@ -1,11 +1,11 @@
-DEV_DIR ?= .lattice-dev
+override DEV_DIR := .lattice-dev
 DEV_HANDLE ?= $(shell id -un | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9-' '-' | sed 's/^-//;s/-$$//')
 DEV_PUBLISHER ?= dev.$(DEV_HANDLE)
-DEVPLUGIN ?= go run github.com/LatticeNet/lattice-server/tools/devplugin@a559b14a278fc4e77052966452fbd04bdc693880
-DEV_SEED ?= $(DEV_DIR)/publisher.seed
-DEV_TRUST ?= $(DEV_DIR)/plugin-trust.local.json
-DEV_BUNDLE ?= $(DEV_DIR)/reference-plugin.tar.gz
-DEV_MANIFEST ?= $(DEV_DIR)/manifest.dev.json
+DEVPLUGIN ?= go run github.com/LatticeNet/lattice-server/tools/devplugin@f98fe94e31da86296c7aa9b5bdb97d6e1f7a51c5
+override DEV_SEED := $(DEV_DIR)/publisher.seed
+override DEV_TRUST := $(DEV_DIR)/plugin-trust.local.json
+override DEV_BUNDLE := $(DEV_DIR)/reference-plugin.tar.gz
+override DEV_MANIFEST := $(DEV_DIR)/manifest.dev.json
 
 .PHONY: dev-key dev-bundle dev-plugin
 
