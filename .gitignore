@@ -2,5 +2,6 @@ system-go/lattice-plugin-example
 system-go/system-go
 ui/node_modules/
 ui/dist/
+.lattice-dev/
 *.tar.gz
 *.wasm
