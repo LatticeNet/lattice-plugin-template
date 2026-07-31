@@ -133,8 +133,8 @@ branch instead of the published tool while developing the tooling itself:
 make DEVPLUGIN='go run ../lattice-server/tools/devplugin' dev-plugin
 ```
 
-Without that override, the Makefile runs the tool from the server
-`integration` branch.
+Without that override, the Makefile runs the tool from the exact reviewed server
+commit pinned in `DEVPLUGIN`.
 
 Point a local server at `.lattice-dev/plugin-trust.local.json` when you want it
 to load the dev-signed manifest. A server whose trust file does not list your
