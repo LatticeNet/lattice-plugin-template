@@ -14,6 +14,7 @@ dev-key:
 
 dev-bundle:
 	mkdir -p "$(DEV_DIR)"
+	set -eu; \
 	stage=$$(mktemp -d "$(DEV_DIR)/bundle.XXXXXX"); \
 	trap 'rm -rf "$$stage"' EXIT; \
 	mkdir -p "$$stage/bin/linux-amd64" "$$stage/bin/linux-arm64" "$$stage/ui"; \
