@@ -98,6 +98,49 @@ Release builds pin Node.js 22 and Go 1.26.4. Both toolchains are part of the
 signed byte contract: changing either can alter the bundled UI or runtime even
 when the source tree is unchanged.
 
+## Local Development With A Dev Key
+
+Local development uses a per-developer publisher named `dev.<handle>` and the
+same signature verification path as production. It does not use
+`allow_unsigned_host_risk`.
+
+Generate a local seed and trust file:
+
+```bash
+make dev-key
+```
+
+This writes `.lattice-dev/publisher.seed` and
+`.lattice-dev/plugin-trust.local.json`. The entire `.lattice-dev/` directory is
+gitignored. Do not copy these files into a production trust file, CI job, or
+release process.
+
+Build a local bundle and dev manifest:
+
+```bash
+make dev-plugin
+```
+
+The target packages `.lattice-dev/reference-plugin.tar.gz` and writes
+`.lattice-dev/manifest.dev.json` with publisher `dev.<handle>`, an artifact
+digest matching the local bundle, and a dev signature. The checked-in
+`manifest.json` stays unchanged.
+
+If the server tooling is checked out beside this plugin repo, use the local
+branch instead of the published tool while developing the tooling itself:
+
+```bash
+make DEVPLUGIN='go run ../lattice-server/tools/devplugin' dev-plugin
+```
+
+Without that override, the Makefile runs the tool from the server
+`integration` branch.
+
+Point a local server at `.lattice-dev/plugin-trust.local.json` when you want it
+to load the dev-signed manifest. A server whose trust file does not list your
+`dev.<handle>` publisher rejects that bundle through the ordinary trusted
+publisher check.
+
 ## Signing
 
 The checked-in manifest represents the published alpha artifact and therefore
