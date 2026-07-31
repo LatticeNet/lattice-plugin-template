@@ -96,8 +96,8 @@ cp -R ui/dist/. "$tmpdir/bundle/ui"
 `pluginpack` normalizes archive paths, rejects unsafe names and symlinks, stamps
 tar entries at the Unix epoch, zeros uid/gid, and uses mode `0700` for
 directories and runtime binaries (`bin/**/plugin`) with `0600` for other files.
-It only publishes archives under `.lattice-dev/` so local packaging cannot
-overwrite the checked-in `manifest.json`.
+The local Makefile and examples publish archives under `.lattice-dev/` so local
+packaging cannot overwrite the checked-in `manifest.json`.
 Release builds pin Node.js 22 and Go 1.26.4. Both toolchains are part of the
 signed byte contract: changing either can alter the bundled UI or runtime even
 when the source tree is unchanged.

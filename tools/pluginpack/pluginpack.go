@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -53,151 +52,18 @@ func Pack(sourceDir string, out io.Writer) error {
 }
 
 func PackFile(sourceDir, outputPath string) (string, error) {
-	absSource, err := filepath.Abs(sourceDir)
+	target, err := os.Create(outputPath)
 	if err != nil {
 		return "", err
 	}
-	absOutput, err := filepath.Abs(outputPath)
-	if err != nil {
-		return "", err
-	}
-	repoRoot, err := findTemplateRootAbove(filepath.Dir(absOutput))
-	if err != nil {
-		repoRoot, err = findTemplateRoot()
-	}
-	if err != nil {
-		return "", err
-	}
-	if err := validateOutputPath(repoRoot, absSource, absOutput); err != nil {
-		return "", err
-	}
-	if err := os.MkdirAll(filepath.Dir(absOutput), 0o700); err != nil {
-		return "", err
-	}
-	if err := rejectExistingOutputAlias(absOutput); err != nil {
-		return "", err
-	}
-
-	target, err := os.CreateTemp(filepath.Dir(absOutput), "."+filepath.Base(absOutput)+".tmp-*")
-	if err != nil {
-		return "", err
-	}
-	tmpPath := target.Name()
-	defer os.Remove(tmpPath)
+	defer target.Close()
 
 	hash := sha256.New()
 	if err := Pack(sourceDir, io.MultiWriter(target, hash)); err != nil {
-		_ = target.Close()
-		return "", err
-	}
-	if err := target.Close(); err != nil {
-		return "", err
-	}
-	if err := os.Rename(tmpPath, absOutput); err != nil {
+		_ = os.Remove(outputPath)
 		return "", err
 	}
 	return hex.EncodeToString(hash.Sum(nil)), nil
-}
-
-func findTemplateRoot() (string, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	return findTemplateRootAbove(wd)
-}
-
-func findTemplateRootAbove(start string) (string, error) {
-	dir := filepath.Clean(start)
-	for {
-		if fileExists(filepath.Join(dir, "manifest.json")) &&
-			fileExists(filepath.Join(dir, "tools", "pluginpack", "go.mod")) {
-			return dir, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", fmt.Errorf("could not find template root above %s", start)
-		}
-		dir = parent
-	}
-}
-
-func validateOutputPath(repoRoot, sourceDir, outputPath string) error {
-	devDir := filepath.Join(repoRoot, ".lattice-dev")
-	if rel, err := filepath.Rel(sourceDir, outputPath); err == nil && (rel == "." || (rel != ".." &&
-		!strings.HasPrefix(rel, ".."+string(os.PathSeparator)))) {
-		return fmt.Errorf("output %s must not be inside source directory %s", outputPath, sourceDir)
-	}
-	if rel, err := filepath.Rel(repoRoot, outputPath); err == nil && rel != ".." &&
-		!strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		if rel, err := filepath.Rel(devDir, outputPath); err != nil || rel == "." || rel == ".." ||
-			strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-			return fmt.Errorf("output inside the template repo must be a file under %s", devDir)
-		}
-		return rejectSymlinkAncestors(devDir, filepath.Dir(outputPath))
-	}
-	return nil
-}
-
-func rejectSymlinkAncestors(root, targetDir string) error {
-	if info, err := os.Lstat(root); err == nil && info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("%s is a symlink", root)
-	} else if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-
-	rel, err := filepath.Rel(root, targetDir)
-	if err != nil || rel == "." {
-		return nil
-	}
-	current := root
-	for _, part := range strings.Split(rel, string(os.PathSeparator)) {
-		if part == "" || part == "." {
-			continue
-		}
-		current = filepath.Join(current, part)
-		info, err := os.Lstat(current)
-		if os.IsNotExist(err) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("%s is a symlink", current)
-		}
-	}
-	return nil
-}
-
-func rejectExistingOutputAlias(outputPath string) error {
-	info, err := os.Lstat(outputPath)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("output %s is a symlink", outputPath)
-	}
-	if !info.Mode().IsRegular() {
-		return fmt.Errorf("output %s is not a regular file", outputPath)
-	}
-	if hasMultipleLinks(info) {
-		return fmt.Errorf("output %s has multiple hard links", outputPath)
-	}
-	return nil
-}
-
-func hasMultipleLinks(info fs.FileInfo) bool {
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	return ok && stat.Nlink > 1
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
 
 func collectEntries(sourceDir string) ([]entry, error) {
