@@ -6,7 +6,14 @@ around review.
 
 ## Ownership And Trust
 
-- `manifest.json` is intentionally unsigned for local development only.
+- `manifest.json` is checked in unsigned, and an unsigned manifest does not
+  load. `VerifyManifest` sets `requireSignature` for every
+  `lattice.plugin.manifest.v2` manifest, so this bundle is rejected with
+  "manifest signature requires publisher" on any server, including a local one.
+  The dev-only escape hatch `AllowUnsignedHostRisk` does not cover it: that flag
+  only relaxes the v1 host-risk branch. To run this template you must set a
+  `publisher`, sign it with `pluginsign`, and add that publisher to the server's
+  `-plugin-trust` file.
 - Production bundles must replace the placeholder digest with the real
   artifact SHA-256 and add a trusted signature in release automation.
 - The published trust decision should bind the manifest identity to the exact
